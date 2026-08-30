@@ -1,5 +1,10 @@
 package com.meow.assistant.assistant
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.meow.assistant.R
@@ -76,8 +82,26 @@ fun AssistantAppSelectionDialog(
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     items(filteredApps, key = { it.packageName }) { app ->
+                        val checked = app.packageName in selectedPackages
+                        val rowScale by animateFloatAsState(
+                            targetValue = if (checked) 0.985f else 1f,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                            label = "dialog_app_row_scale",
+                        )
+                        val labelColor by animateColorAsState(
+                            targetValue = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            animationSpec = tween(180),
+                            label = "dialog_app_label_color",
+                        )
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateItem()
+                                .graphicsLayer {
+                                    scaleX = rowScale
+                                    scaleY = rowScale
+                                }
+                                .padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             AppIconImage(
@@ -86,11 +110,11 @@ fun AssistantAppSelectionDialog(
                                 label = app.label,
                             )
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(app.label)
+                                Text(app.label, color = labelColor)
                                 Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Checkbox(
-                                checked = app.packageName in selectedPackages,
+                                checked = checked,
                                 onCheckedChange = { checked ->
                                     val updated = selectedPackages.toMutableSet()
                                     if (checked) updated += app.packageName else updated -= app.packageName

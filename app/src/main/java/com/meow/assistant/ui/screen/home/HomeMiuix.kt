@@ -3,10 +3,16 @@ package com.meow.assistant.ui.screen.home
 import android.os.Build
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
@@ -38,6 +44,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -105,8 +113,12 @@ fun HomePagerMiuix(
             item("apps_controls") {
                 AnimatedVisibility(
                     visible = expanded,
-                    enter = fadeIn(tween(120)) + expandVertically(tween(220)),
-                    exit = fadeOut(tween(90)) + shrinkVertically(tween(180)),
+                    enter = fadeIn(tween(160)) +
+                        slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) { -it / 5 } +
+                        expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
+                    exit = fadeOut(tween(120)) +
+                        slideOutVertically(animationSpec = tween(160)) { -it / 6 } +
+                        shrinkVertically(animationSpec = tween(180)),
                 ) {
                     AssistantAppsControlsMiuix(
                         query = query,
@@ -141,9 +153,17 @@ fun HomePagerMiuix(
 
 @Composable
 private fun AssistantStatusCardMiuix(config: AssistantConfig, onToggle: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    Card(modifier.fillMaxWidth()) {
+    val iconScale by animateFloatAsState(
+        targetValue = if (config.enabled) 1.08f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "assistant_status_icon_scale_miuix",
+    )
+    Card(modifier.fillMaxWidth().smoothSize()) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.Pets, null, tint = colorScheme.primary, modifier = Modifier.size(28.dp))
+            Icon(Icons.Rounded.Pets, null, tint = colorScheme.primary, modifier = Modifier.size(28.dp).graphicsLayer {
+                scaleX = iconScale
+                scaleY = iconScale
+            })
             Text(
                 if (config.enabled) stringResource(R.string.home_assistant_enabled) else stringResource(R.string.home_assistant_disabled),
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
@@ -178,7 +198,12 @@ private fun AssistantAppsHeaderMiuix(
     onExpandedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier.fillMaxWidth()) {
+    val iconRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "apps_expand_rotation_miuix",
+    )
+    Card(modifier.fillMaxWidth().smoothSize()) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -204,6 +229,7 @@ private fun AssistantAppsHeaderMiuix(
                     if (isExpanded) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
                     null,
                     tint = colorScheme.primary,
+                    modifier = Modifier.rotate(iconRotation),
                 )
             }
         }
@@ -217,7 +243,7 @@ private fun AssistantAppsControlsMiuix(
     category: HomeAppCategory,
     onCategoryChange: (HomeAppCategory) -> Unit,
 ) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth().smoothSize()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             TextField(
                 value = query,
@@ -240,16 +266,32 @@ private fun AssistantAppsControlsMiuix(
 
 @Composable
 private fun CategoryButtonMiuix(text: String, selected: Boolean, onClick: () -> Unit) {
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.04f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "category_scale_miuix",
+    )
+    val textColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (selected) colorScheme.primary else colorScheme.onSurfaceVariantSummary,
+        animationSpec = tween(180),
+        label = "category_color_miuix",
+    )
     Text(
         text,
-        modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
-        color = if (selected) colorScheme.primary else colorScheme.onSurfaceVariantSummary,
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        color = textColor,
     )
 }
 
 @Composable
 private fun EmptyAppsCardMiuix(modifier: Modifier = Modifier) {
-    Card(modifier.fillMaxWidth()) {
+    Card(modifier.fillMaxWidth().smoothSize()) {
         Text(
             stringResource(R.string.assistant_apps_empty),
             color = colorScheme.onSurfaceVariantSummary,
@@ -265,7 +307,15 @@ private fun AppRowCardMiuix(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier.fillMaxWidth()) {
+    val rowScale by animateFloatAsState(
+        targetValue = if (checked) 0.985f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "app_row_scale_miuix",
+    )
+    Card(modifier.fillMaxWidth().graphicsLayer {
+        scaleX = rowScale
+        scaleY = rowScale
+    }) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -282,3 +332,6 @@ private fun AppRowCardMiuix(
         }
     }
 }
+
+private fun Modifier.smoothSize(): Modifier =
+    animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))

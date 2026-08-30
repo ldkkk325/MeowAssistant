@@ -1,5 +1,8 @@
 package com.meow.assistant.assistant
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.meow.assistant.R
 import com.meow.assistant.ui.component.AppIconImage
@@ -53,8 +57,21 @@ internal fun AssistantAppSelectionDialogMiuix(
                 )
                 LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
                     items(filteredApps, key = { it.packageName }) { app ->
+                        val checked = app.packageName in selectedPackages
+                        val rowScale by animateFloatAsState(
+                            targetValue = if (checked) 0.985f else 1f,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                            label = "dialog_app_row_scale_miuix",
+                        )
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateItem()
+                                .graphicsLayer {
+                                    scaleX = rowScale
+                                    scaleY = rowScale
+                                }
+                                .padding(horizontal = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             AppIconImage(
@@ -65,7 +82,7 @@ internal fun AssistantAppSelectionDialogMiuix(
                             CheckboxPreference(
                                 title = app.label,
                                 summary = app.packageName,
-                                checked = app.packageName in selectedPackages,
+                                checked = checked,
                                 insideMargin = PaddingValues(vertical = 8.dp),
                                 onCheckedChange = { checked ->
                                     val updated = selectedPackages.toMutableSet()

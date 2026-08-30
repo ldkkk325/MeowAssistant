@@ -3,10 +3,16 @@ package com.meow.assistant.ui.screen.home
 import android.os.Build
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
@@ -51,6 +57,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -115,8 +123,12 @@ fun HomePagerMaterial(
             item("apps_controls") {
                 AnimatedVisibility(
                     visible = expanded,
-                    enter = fadeIn(tween(120)) + expandVertically(tween(220)),
-                    exit = fadeOut(tween(90)) + shrinkVertically(tween(180)),
+                    enter = fadeIn(tween(160)) +
+                        slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) { -it / 5 } +
+                        expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
+                    exit = fadeOut(tween(120)) +
+                        slideOutVertically(animationSpec = tween(160)) { -it / 6 } +
+                        shrinkVertically(animationSpec = tween(180)),
                 ) {
                     AssistantAppsControlsCard(
                         query = query,
@@ -151,7 +163,7 @@ fun HomePagerMaterial(
 
 @Composable
 private fun SystemInfoCard(modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+    Surface(modifier.fillMaxWidth().smoothSize(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.home_system_info), style = MaterialTheme.typography.titleMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -168,9 +180,17 @@ private fun SystemInfoCard(modifier: Modifier = Modifier) {
 
 @Composable
 private fun AssistantStatusCard(config: AssistantConfig, onToggle: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+    val iconScale by animateFloatAsState(
+        targetValue = if (config.enabled) 1.08f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "assistant_status_icon_scale",
+    )
+    Surface(modifier.fillMaxWidth().smoothSize(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.Pets, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+            Icon(Icons.Rounded.Pets, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp).graphicsLayer {
+                scaleX = iconScale
+                scaleY = iconScale
+            })
             Text(
                 text = if (config.enabled) stringResource(R.string.home_assistant_enabled) else stringResource(R.string.home_assistant_disabled),
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
@@ -188,7 +208,12 @@ private fun AssistantAppsHeaderCard(
     onExpandedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+    val iconRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "apps_expand_rotation",
+    )
+    Surface(modifier.fillMaxWidth().smoothSize(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -214,6 +239,7 @@ private fun AssistantAppsHeaderCard(
                     if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                     null,
                     tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.rotate(iconRotation),
                 )
             }
         }
@@ -227,7 +253,7 @@ private fun AssistantAppsControlsCard(
     category: HomeAppCategory,
     onCategoryChange: (HomeAppCategory) -> Unit,
 ) {
-    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+    Surface(Modifier.fillMaxWidth().smoothSize(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = query,
@@ -255,7 +281,7 @@ private fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun EmptyAppsCard(modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+    Surface(modifier.fillMaxWidth().smoothSize(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Text(
             stringResource(R.string.assistant_apps_empty),
             Modifier.padding(16.dp),
@@ -271,7 +297,26 @@ private fun AppRowCard(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+    val rowScale by animateFloatAsState(
+        targetValue = if (checked) 0.985f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "app_row_scale",
+    )
+    val containerColor = androidx.compose.animation.animateColorAsState(
+        targetValue = if (checked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        animationSpec = tween(220),
+        label = "app_row_container",
+    )
+    Surface(
+        modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = rowScale
+                scaleY = rowScale
+            },
+        shape = MaterialTheme.shapes.medium,
+        color = containerColor.value,
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -288,3 +333,6 @@ private fun AppRowCard(
         }
     }
 }
+
+private fun Modifier.smoothSize(): Modifier =
+    animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))

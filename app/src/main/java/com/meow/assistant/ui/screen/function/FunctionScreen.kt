@@ -24,6 +24,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.FormatPaint
@@ -88,6 +97,24 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+
+@Composable
+private fun SmoothAnimatedVisibility(
+    visible: Boolean,
+    content: @Composable () -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(160)) +
+            slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) { -it / 5 } +
+            expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
+        exit = fadeOut(tween(120)) +
+            slideOutVertically(animationSpec = tween(160)) { -it / 6 } +
+            shrinkVertically(animationSpec = tween(180)),
+    ) {
+        content()
+    }
+}
 
 @Composable
 fun FunctionPager(bottomInnerPadding: Dp) {
@@ -178,7 +205,7 @@ private fun FunctionPagerMaterial(
                     )
                 }
                 item {
-                    AnimatedVisibility(visible = config.enableAppend) {
+                    SmoothAnimatedVisibility(visible = config.enableAppend) {
                         SegmentedListItem(
                             onClick = { editingField = EditorField.Append },
                             headlineContent = { Text(stringResource(R.string.assistant_append_text)) },
@@ -198,24 +225,24 @@ private fun FunctionPagerMaterial(
                     )
                 }
                 item {
-                    AnimatedVisibility(visible = config.enableEmoticon) {
+                    SmoothAnimatedVisibility(visible = config.enableEmoticon) {
                         EmoticonProbabilityMaterial(config, viewModel)
                     }
                 }
                 item {
-                    AnimatedVisibility(visible = config.enableEmoticon && config.enableRandomText) {
+                    SmoothAnimatedVisibility(visible = config.enableEmoticon && config.enableRandomText) {
                         ProbabilityMaterial(R.string.assistant_random_text_probability, R.string.assistant_random_text_probability_summary, config.randomTextProbability, true, viewModel::setRandomTextProbability)
                     }
                 }
                 item {
-                    AnimatedVisibility(visible = config.enableAppend) {
+                    SmoothAnimatedVisibility(visible = config.enableAppend) {
                         ProbabilityMaterial(R.string.assistant_append_probability, R.string.assistant_append_probability_summary, config.appendProbability, true, viewModel::setAppendProbability)
                     }
                 }
                 item { SegmentedSwitchItem(title = stringResource(R.string.assistant_protect_input_methods), summary = stringResource(R.string.assistant_protect_input_methods_summary), checked = config.protectInputMethods, onCheckedChange = viewModel::setProtectInputMethods) }
                 item { SegmentedSwitchItem(title = stringResource(R.string.assistant_protect_passwords), summary = stringResource(R.string.assistant_protect_passwords_summary), checked = config.protectPasswords, onCheckedChange = viewModel::setProtectPasswords) }
                 item {
-                    AnimatedVisibility(visible = config.enableEmoticon) {
+                    SmoothAnimatedVisibility(visible = config.enableEmoticon) {
                         SegmentedSwitchItem(
                             title = stringResource(R.string.assistant_smart_emoticon),
                             summary = stringResource(R.string.assistant_smart_emoticon_summary),
@@ -225,7 +252,7 @@ private fun FunctionPagerMaterial(
                     }
                 }
                 item {
-                    AnimatedVisibility(visible = config.enableEmoticon) {
+                    SmoothAnimatedVisibility(visible = config.enableEmoticon) {
                         SegmentedSwitchItem(
                             title = stringResource(R.string.assistant_random_text),
                             summary = stringResource(R.string.assistant_random_text_summary),
@@ -259,7 +286,7 @@ private fun FunctionPagerMaterial(
                 }
             }
             ConfigTransferMaterial(exportLauncher, importLauncher, logExportLauncher)
-            AnimatedVisibility(visible = config.processingMode == ProcessingMode.FLOATING) {
+            SmoothAnimatedVisibility(visible = config.processingMode == ProcessingMode.FLOATING) {
                 FloatingSettingsMaterial(config = config, viewModel = viewModel)
             }
         }
@@ -337,7 +364,7 @@ private fun FunctionPagerMiuix(
                     onCheckedChange = viewModel::setAppendEnabled,
                     startAction = { Icon(Icons.Rounded.FormatPaint, null, tint = colorScheme.onBackground) },
                 )
-                AnimatedVisibility(visible = config.enableAppend) {
+                SmoothAnimatedVisibility(visible = config.enableAppend) {
                     ArrowPreference(
                         title = stringResource(R.string.assistant_append_text),
                         summary = config.appendText.ifBlank { "—" },
@@ -351,18 +378,18 @@ private fun FunctionPagerMiuix(
                     onCheckedChange = viewModel::setEmoticonEnabled,
                     startAction = { Icon(Icons.Rounded.AutoAwesome, null, tint = colorScheme.onBackground) },
                 )
-                AnimatedVisibility(visible = config.enableEmoticon) {
+                SmoothAnimatedVisibility(visible = config.enableEmoticon) {
                     EmoticonProbabilityMiuix(config, viewModel)
                 }
-                AnimatedVisibility(visible = config.enableEmoticon && config.enableRandomText) {
+                SmoothAnimatedVisibility(visible = config.enableEmoticon && config.enableRandomText) {
                     ProbabilityMiuix(R.string.assistant_random_text_probability, R.string.assistant_random_text_probability_summary, config.randomTextProbability, true, viewModel::setRandomTextProbability)
                 }
-                AnimatedVisibility(visible = config.enableAppend) {
+                SmoothAnimatedVisibility(visible = config.enableAppend) {
                     ProbabilityMiuix(R.string.assistant_append_probability, R.string.assistant_append_probability_summary, config.appendProbability, true, viewModel::setAppendProbability)
                 }
                 SwitchPreference(title = stringResource(R.string.assistant_protect_input_methods), summary = stringResource(R.string.assistant_protect_input_methods_summary), checked = config.protectInputMethods, onCheckedChange = viewModel::setProtectInputMethods)
                 SwitchPreference(title = stringResource(R.string.assistant_protect_passwords), summary = stringResource(R.string.assistant_protect_passwords_summary), checked = config.protectPasswords, onCheckedChange = viewModel::setProtectPasswords)
-                AnimatedVisibility(visible = config.enableEmoticon) {
+                SmoothAnimatedVisibility(visible = config.enableEmoticon) {
                     SwitchPreference(
                         title = stringResource(R.string.assistant_smart_emoticon),
                         summary = stringResource(R.string.assistant_smart_emoticon_summary),
@@ -370,7 +397,7 @@ private fun FunctionPagerMiuix(
                         onCheckedChange = viewModel::setSmartEmoticonEnabled,
                     )
                 }
-                AnimatedVisibility(visible = config.enableEmoticon) {
+                SmoothAnimatedVisibility(visible = config.enableEmoticon) {
                     SwitchPreference(
                         title = stringResource(R.string.assistant_random_text),
                         summary = stringResource(R.string.assistant_random_text_summary),
@@ -397,7 +424,7 @@ private fun FunctionPagerMiuix(
                 )
             }
             ConfigTransferMiuix(exportLauncher, importLauncher, logExportLauncher)
-            AnimatedVisibility(visible = config.processingMode == ProcessingMode.FLOATING) {
+            SmoothAnimatedVisibility(visible = config.processingMode == ProcessingMode.FLOATING) {
                 FloatingSettingsMiuix(config = config, viewModel = viewModel)
             }
             }

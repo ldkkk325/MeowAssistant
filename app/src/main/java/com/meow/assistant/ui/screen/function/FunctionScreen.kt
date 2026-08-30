@@ -1,5 +1,6 @@
 package com.meow.assistant.ui.screen.function
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -116,6 +117,7 @@ private fun SmoothAnimatedVisibility(
     }
 }
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun FunctionPager(bottomInnerPadding: Dp) {
     val viewModel = viewModel<AssistantViewModel>()

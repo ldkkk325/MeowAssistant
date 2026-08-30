@@ -60,6 +60,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.meow.assistant.R
 import com.meow.assistant.assistant.AssistantConfig
+import com.meow.assistant.assistant.AssistantDebugLog
 import com.meow.assistant.assistant.AssistantViewModel
 import com.meow.assistant.assistant.ProcessingMode
 import com.meow.assistant.ui.LocalUiMode
@@ -104,6 +105,12 @@ fun FunctionPager(bottomInnerPadding: Dp) {
             Toast.makeText(context, R.string.assistant_config_imported, Toast.LENGTH_SHORT).show()
         }.onFailure { Toast.makeText(context, R.string.assistant_config_import_failed, Toast.LENGTH_SHORT).show() }
     }
+    val logExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri != null) runCatching {
+            val log = AssistantDebugLog.export(context).ifBlank { context.getString(R.string.assistant_log_empty) + "\n" }
+            context.contentResolver.openOutputStream(uri)?.use { it.write(log.toByteArray()) }
+        }.onFailure { Toast.makeText(context, R.string.assistant_log_export_failed, Toast.LENGTH_SHORT).show() }
+    }
     LifecycleResumeEffect(config.processingMode) {
         if (config.processingMode == ProcessingMode.FLOATING && Settings.canDrawOverlays(context)) {
             context.startService(Intent(context, com.meow.assistant.assistant.AssistantFloatBallService::class.java))
@@ -113,13 +120,20 @@ fun FunctionPager(bottomInnerPadding: Dp) {
         onPauseOrDispose { }
     }
     when (LocalUiMode.current) {
-        UiMode.Miuix -> FunctionPagerMiuix(config, viewModel, bottomInnerPadding, exportLauncher, importLauncher)
-        UiMode.Material -> FunctionPagerMaterial(config, viewModel, bottomInnerPadding, exportLauncher, importLauncher)
+        UiMode.Miuix -> FunctionPagerMiuix(config, viewModel, bottomInnerPadding, exportLauncher, importLauncher, logExportLauncher)
+        UiMode.Material -> FunctionPagerMaterial(config, viewModel, bottomInnerPadding, exportLauncher, importLauncher, logExportLauncher)
     }
 }
 
 @Composable
-private fun FunctionPagerMaterial(config: AssistantConfig, viewModel: AssistantViewModel, bottomInnerPadding: Dp, exportLauncher: androidx.activity.result.ActivityResultLauncher<String>, importLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>) {
+private fun FunctionPagerMaterial(
+    config: AssistantConfig,
+    viewModel: AssistantViewModel,
+    bottomInnerPadding: Dp,
+    exportLauncher: androidx.activity.result.ActivityResultLauncher<String>,
+    importLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    logExportLauncher: androidx.activity.result.ActivityResultLauncher<String>,
+) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     var editingField by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<EditorField?>(null) }
@@ -244,7 +258,7 @@ private fun FunctionPagerMaterial(config: AssistantConfig, viewModel: AssistantV
                     )
                 }
             }
-            ConfigTransferMaterial(exportLauncher, importLauncher)
+            ConfigTransferMaterial(exportLauncher, importLauncher, logExportLauncher)
             AnimatedVisibility(visible = config.processingMode == ProcessingMode.FLOATING) {
                 FloatingSettingsMaterial(config = config, viewModel = viewModel)
             }
@@ -269,7 +283,14 @@ private fun FunctionPagerMaterial(config: AssistantConfig, viewModel: AssistantV
 }
 
 @Composable
-private fun FunctionPagerMiuix(config: AssistantConfig, viewModel: AssistantViewModel, bottomInnerPadding: Dp, exportLauncher: androidx.activity.result.ActivityResultLauncher<String>, importLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>) {
+private fun FunctionPagerMiuix(
+    config: AssistantConfig,
+    viewModel: AssistantViewModel,
+    bottomInnerPadding: Dp,
+    exportLauncher: androidx.activity.result.ActivityResultLauncher<String>,
+    importLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    logExportLauncher: androidx.activity.result.ActivityResultLauncher<String>,
+) {
     val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
     val backdrop = rememberBlurBackdrop(enableBlur = true)
@@ -375,7 +396,7 @@ private fun FunctionPagerMiuix(config: AssistantConfig, viewModel: AssistantView
                     onClick = { editingField = EditorField.Texts },
                 )
             }
-            ConfigTransferMiuix(exportLauncher, importLauncher)
+            ConfigTransferMiuix(exportLauncher, importLauncher, logExportLauncher)
             AnimatedVisibility(visible = config.processingMode == ProcessingMode.FLOATING) {
                 FloatingSettingsMiuix(config = config, viewModel = viewModel)
             }
@@ -486,6 +507,7 @@ private fun ProbabilityMiuix(titleRes: Int, summaryRes: Int, value: Int, enabled
 private fun ConfigTransferMaterial(
     exportLauncher: androidx.activity.result.ActivityResultLauncher<String>,
     importLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    logExportLauncher: androidx.activity.result.ActivityResultLauncher<String>,
 ) {
     SegmentedColumn(title = stringResource(R.string.assistant_config_section)) {
         item {
@@ -494,6 +516,9 @@ private fun ConfigTransferMaterial(
         item {
             SegmentedListItem(leadingContent = { androidx.compose.material3.Icon(Icons.Rounded.FileDownload, null) }, headlineContent = { Text(stringResource(R.string.assistant_config_export)) }, onClick = { exportLauncher.launch("miao-helper-config.json") })
         }
+        item {
+            SegmentedListItem(leadingContent = { androidx.compose.material3.Icon(Icons.Rounded.FileDownload, null) }, headlineContent = { Text(stringResource(R.string.assistant_log_export)) }, onClick = { logExportLauncher.launch("miao-helper-debug.log") })
+        }
     }
 }
 
@@ -501,10 +526,12 @@ private fun ConfigTransferMaterial(
 private fun ConfigTransferMiuix(
     exportLauncher: androidx.activity.result.ActivityResultLauncher<String>,
     importLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    logExportLauncher: androidx.activity.result.ActivityResultLauncher<String>,
 ) {
     Card(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
         ArrowPreference(title = stringResource(R.string.assistant_config_import), onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) }, startAction = { Icon(Icons.Rounded.FileUpload, null, tint = colorScheme.onBackground) })
         ArrowPreference(title = stringResource(R.string.assistant_config_export), onClick = { exportLauncher.launch("miao-helper-config.json") }, startAction = { Icon(Icons.Rounded.FileDownload, null, tint = colorScheme.onBackground) })
+        ArrowPreference(title = stringResource(R.string.assistant_log_export), onClick = { logExportLauncher.launch("miao-helper-debug.log") }, startAction = { Icon(Icons.Rounded.FileDownload, null, tint = colorScheme.onBackground) })
     }
 }
 

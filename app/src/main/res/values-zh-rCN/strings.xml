@@ -93,6 +93,9 @@
     <string name="assistant_config_imported">配置导入成功</string>
     <string name="assistant_config_import_failed">配置导入失败</string>
     <string name="assistant_config_export_failed">配置导出失败</string>
+    <string name="assistant_log_export">导出调试日志</string>
+    <string name="assistant_log_export_failed">调试日志导出失败</string>
+    <string name="assistant_log_empty">暂无调试日志。</string>
     <string name="assistant_smart_emoticon">智能颜文字</string>
     <string name="assistant_smart_emoticon_summary">根据句末标点选择颜文字。</string>
     <string name="assistant_random_text">随机动作文本</string>

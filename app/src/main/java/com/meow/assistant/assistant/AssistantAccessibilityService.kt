@@ -27,6 +27,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
     private var inputMethodPackage: String? = null
     private var activeWindowPackage: String? = null
     private var activeWindowId = -1
+    private var lastWriteNodeKey = ""
     private val eventHandler = Handler(Looper.getMainLooper())
     private var pendingProcess: Runnable? = null
     private var pendingNode: AccessibilityNodeInfo? = null
@@ -178,6 +179,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
         }
         if (isPlaceholderText(node, current)) {
             if (shouldRetryWeChatRead(eventPackage, eventType, config, insertionEvent, retryAllowed)) {
+                logTextEvent("retry_wechat_hint", eventPackage, eventType, node, current, eventText, nodeKey)
                 scheduleTextProcessing(
                     eventPackage = eventPackage,
                     eventType = eventType,
@@ -190,10 +192,14 @@ open class AssistantAccessibilityService : AccessibilityService() {
                 )
                 return
             }
+            logTextEvent("skip_placeholder", eventPackage, eventType, node, current, eventText, nodeKey)
             resetTextState()
             return
         }
-        if (isRecentSelfWriteEcho(current)) return
+        if (isRecentSelfWriteEcho(current, nodeKey)) {
+            logTextEvent("skip_self_write_echo", eventPackage, eventType, node, current, eventText, nodeKey)
+            return
+        }
         val previousObservedText = lastObservedText
         val currentCursor = node.textSelectionStart
             .takeIf { it >= 0 }
@@ -213,7 +219,8 @@ open class AssistantAccessibilityService : AccessibilityService() {
         }
         val original = recovered.text
         if (deleting) {
-            handleRealtimeDeletion(node, current, recovered)
+            logTextEvent("realtime_delete", eventPackage, eventType, node, current, eventText, nodeKey)
+            handleRealtimeDeletion(node, current, recovered, nodeKey)
             return
         }
         if (realtimeMode && deletionSessionActive && !isTextInsertion(previousObservedText, current, insertionEvent)) {
@@ -224,8 +231,10 @@ open class AssistantAccessibilityService : AccessibilityService() {
             deletionSessionActive = false
         }
         lastObservedText = current
-        if (current == lastWritten) return
-        if (current in recentWrittenTexts) return
+        if (sameNormalizedText(current, lastWritten) || isRecentlyWrittenText(current)) {
+            logTextEvent("skip_recent_written", eventPackage, eventType, node, current, eventText, nodeKey)
+            return
+        }
         if (config.processingMode == ProcessingMode.PUNCTUATION && eventType != AccessibilityEvent.TYPE_VIEW_CLICKED && current.lastOrNull()?.let { it !in charArrayOf('。', '！', '!', '？', '?', '.', ',', '，', '\n') } == true) return
 
         val previousEmoticon = lastEmoticon?.takeIf { current.contains(it) }
@@ -245,7 +254,8 @@ open class AssistantAccessibilityService : AccessibilityService() {
             return
         }
         val selectionIndex = TextProcessor.processedCursorIndex(result, recovered.cursorIndex)
-        writeResult(node, result, original, selectionIndex)
+        val wrote = writeResult(node, result, original, selectionIndex, nodeKey)
+        logTextEvent(if (wrote) "write_result" else "write_failed", eventPackage, eventType, node, current, eventText, nodeKey, "output" to result.text)
     }
 
     override fun onInterrupt() = Unit
@@ -313,12 +323,12 @@ open class AssistantAccessibilityService : AccessibilityService() {
         runCatching { node.refresh() }
         val current = node.text?.toString().orEmpty()
         val currentNodeKey = nodeKey(eventPackage, node)
-        if (current == lastWritten || current in recentWrittenTexts || current == lastFloatingOutput) return
+        if (sameNormalizedText(current, lastWritten) || isRecentlyWrittenText(current) || sameNormalizedText(current, lastFloatingOutput)) return
         if (currentNodeKey == lastFloatingNodeKey && current == lastFloatingInput) return
         if (isPlaceholderText(node, current)) return
         val result = TextProcessor.process(current, config)
         if (result.text == current || result.text.isBlank()) return
-        if (writeResult(node, result, current)) {
+        if (writeResult(node, result, current, nodeKey = currentNodeKey)) {
             lastFloatingNodeKey = currentNodeKey
             lastFloatingInput = current
             lastFloatingOutput = result.text
@@ -330,6 +340,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
         result: ProcessResult,
         original: String,
         selectionIndex: Int = result.userEndIndex,
+        nodeKey: String = lastNodeKey,
     ): Boolean {
         val arguments = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, result.text) }
         if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) return false
@@ -340,6 +351,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
         previousOriginal = original
         lastWritten = result.text
         lastWriteUptime = SystemClock.uptimeMillis()
+        lastWriteNodeKey = nodeKey
         lastObservedText = result.text
         lastResult = result
         lastEmoticon = result.emoticon
@@ -355,21 +367,23 @@ open class AssistantAccessibilityService : AccessibilityService() {
         node: AccessibilityNodeInfo,
         current: String,
         recovered: TextProcessor.RecoveredEdit,
+        nodeKey: String,
     ) {
         deletionSessionActive = true
         val plainText = recovered.text
         val cursor = recovered.cursorIndex.coerceIn(0, plainText.length)
         if (current != plainText) {
-            writePlainText(node, plainText, cursor)
+            writePlainText(node, plainText, cursor, nodeKey)
         } else {
             preservePlainEditedText(plainText, cursor)
         }
     }
 
-    private fun writePlainText(node: AccessibilityNodeInfo, text: String, selectionIndex: Int): Boolean {
+    private fun writePlainText(node: AccessibilityNodeInfo, text: String, selectionIndex: Int, nodeKey: String): Boolean {
         val arguments = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
         if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) return false
         lastWriteUptime = SystemClock.uptimeMillis()
+        lastWriteNodeKey = nodeKey
         node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
             val cursor = selectionIndex.coerceIn(0, text.length)
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, cursor)
@@ -410,8 +424,33 @@ open class AssistantAccessibilityService : AccessibilityService() {
         return trimmed in knownPlaceholders || hint.isNotEmpty() && trimmed == hint
     }
 
-    private fun isRecentSelfWriteEcho(text: String): Boolean =
-        text == lastWritten && SystemClock.uptimeMillis() - lastWriteUptime <= WRITE_ECHO_SUPPRESS_MS
+    private fun isRecentSelfWriteEcho(text: String, nodeKey: String): Boolean {
+        if (SystemClock.uptimeMillis() - lastWriteUptime > WRITE_ECHO_SUPPRESS_MS) return false
+        val current = normalizeComparableText(text)
+        val written = normalizeComparableText(lastWritten)
+        if (current.isEmpty() || written.isEmpty()) return false
+        if (current == written) return true
+        if (nodeKey != lastWriteNodeKey) return false
+        return current.startsWith(written) || written.startsWith(current)
+    }
+
+    private fun isRecentlyWrittenText(text: String): Boolean {
+        val current = normalizeComparableText(text)
+        return current.isNotEmpty() && recentWrittenTexts.any { normalizeComparableText(it) == current }
+    }
+
+    private fun sameNormalizedText(first: String, second: String): Boolean =
+        normalizeComparableText(first) == normalizeComparableText(second)
+
+    private fun normalizeComparableText(value: String): String =
+        value
+            .replace("\u200B", "")
+            .replace("\u200C", "")
+            .replace("\u200D", "")
+            .replace("\uFEFF", "")
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .trim()
 
     private fun currentConfig(): AssistantConfig =
         cachedConfig ?: AssistantConfig.load(this).also { cachedConfig = it }
@@ -431,6 +470,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
         lastObservedText = ""
         lastEmoticon = null
         lastActionText = null
+        lastWriteNodeKey = ""
         if (clearDeletionSession) deletionSessionActive = false
     }
 
@@ -489,6 +529,10 @@ open class AssistantAccessibilityService : AccessibilityService() {
         eventType: Int,
         source: AccessibilityNodeInfo?,
     ): AccessibilityNodeInfo? {
+        val sourceFocused = findFocusedEditableNode(source)
+        if (sourceFocused != null) return sourceFocused
+        val root = getBestRoot(eventPackage)
+        findFocusedEditableNode(root)?.let { return it }
         val sourceEditable = findEditableNode(source)
         if (
             sourceEditable != null &&
@@ -496,8 +540,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
         ) {
             return sourceEditable
         }
-        val root = getBestRoot(eventPackage)
-        return findFocusedEditableNode(root) ?: sourceEditable ?: findEditableNode(root)
+        return sourceEditable ?: findEditableNode(root)
     }
 
     private fun findCurrentEditableNode(
@@ -523,16 +566,55 @@ open class AssistantAccessibilityService : AccessibilityService() {
     ): String {
         val nodeText = node.text?.toString().orEmpty()
         val eventCandidate = eventText.orEmpty()
-        return if (
-            eventPackage == WECHAT_PACKAGE &&
-            config.processingMode == ProcessingMode.REALTIME &&
-            eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
-            eventCandidate.isNotBlank()
-        ) {
-            eventCandidate
-        } else {
-            nodeText
+        if (eventPackage != WECHAT_PACKAGE || config.processingMode != ProcessingMode.REALTIME || eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
+            return nodeText
         }
+        if (nodeText.isNotBlank() && !isPlaceholderText(node, nodeText)) return nodeText
+        if (eventCandidate.isNotBlank() && !isKnownPlaceholderText(node, eventCandidate)) return eventCandidate
+        return nodeText
+    }
+
+    private fun isKnownPlaceholderText(node: AccessibilityNodeInfo, text: String): Boolean {
+        val trimmed = text.trim()
+        val hint = node.hintText?.toString()?.trim().orEmpty()
+        return trimmed in knownPlaceholders || hint.isNotEmpty() && trimmed == hint
+    }
+
+    private fun logTextEvent(
+        action: String,
+        eventPackage: String,
+        eventType: Int,
+        node: AccessibilityNodeInfo,
+        current: String,
+        eventText: String?,
+        nodeKey: String,
+        vararg extras: Pair<String, Any?>,
+    ) {
+        AssistantDebugLog.record(
+            this,
+            action,
+            buildMap {
+                put("pkg", eventPackage)
+                put("event", eventTypeName(eventType))
+                put("nodeKey", nodeKey)
+                put("class", node.className?.toString().orEmpty())
+                put("viewId", node.viewIdResourceName.orEmpty())
+                put("focused", node.isFocused)
+                put("hint", runCatching { node.isShowingHintText }.getOrDefault(false))
+                put("text", current)
+                if (!eventText.isNullOrEmpty()) put("eventText", eventText)
+                extras.forEach { put(it.first, it.second) }
+            },
+        )
+    }
+
+    private fun eventTypeName(eventType: Int): String = when (eventType) {
+        AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> "TEXT_CHANGED"
+        AccessibilityEvent.TYPE_VIEW_CLICKED -> "CLICKED"
+        AccessibilityEvent.TYPE_VIEW_FOCUSED -> "FOCUSED"
+        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> "CONTENT_CHANGED"
+        AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "WINDOW_CHANGED"
+        else -> eventType.toString()
     }
 
     private fun isSendAction(event: AccessibilityEvent): Boolean {

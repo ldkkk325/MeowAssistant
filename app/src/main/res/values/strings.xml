@@ -93,6 +93,9 @@
     <string name="assistant_config_imported">Configuration imported</string>
     <string name="assistant_config_import_failed">Configuration import failed</string>
     <string name="assistant_config_export_failed">Configuration export failed</string>
+    <string name="assistant_log_export">Export debug log</string>
+    <string name="assistant_log_export_failed">Debug log export failed</string>
+    <string name="assistant_log_empty">No debug log yet.</string>
     <string name="assistant_smart_emoticon">Smart emoticon</string>
     <string name="assistant_smart_emoticon_summary">Pick an emoticon based on ending punctuation.</string>
     <string name="assistant_random_text">Random action text</string>

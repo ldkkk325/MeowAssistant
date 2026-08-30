@@ -37,7 +37,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
     private var cachedConfig: AssistantConfig? = null
     private var lastWriteUptime = 0L
     private lateinit var preferences: SharedPreferences
-    private val recentWrittenTexts = ArrayDeque<String>()
+    private val recentWriteRecords = ArrayDeque<RecentWriteRecord>()
 
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         cachedConfig = AssistantConfig.load(this)
@@ -200,12 +200,17 @@ open class AssistantAccessibilityService : AccessibilityService() {
             logTextEvent("skip_self_write_echo", eventPackage, eventType, node, current, eventText, nodeKey)
             return
         }
+        val realtimeMode = config.processingMode == ProcessingMode.REALTIME
+        if (realtimeMode && isResidualFromRecentWrite(current, nodeKey)) {
+            logTextEvent("clear_generated_residual", eventPackage, eventType, node, current, eventText, nodeKey)
+            writePlainText(node, "", 0, nodeKey)
+            return
+        }
         val previousObservedText = lastObservedText
         val currentCursor = node.textSelectionStart
             .takeIf { it >= 0 }
             ?.coerceIn(0, current.length)
         val lengthDropped = current.length < previousObservedText.length || current.length < lastWritten.length
-        val realtimeMode = config.processingMode == ProcessingMode.REALTIME
         val deleting = realtimeMode && (lengthDropped || deletionEvent && !insertionEvent)
         val recovered = if (config.processingMode == ProcessingMode.REALTIME && lastResult != null && previousOriginal.isNotEmpty()) {
             TextProcessor.recoverEdited(
@@ -357,9 +362,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
         lastEmoticon = result.emoticon
         lastActionText = result.actionText
         deletionSessionActive = false
-        recentWrittenTexts.remove(result.text)
-        recentWrittenTexts.addLast(result.text)
-        while (recentWrittenTexts.size > MAX_RECENT_WRITTEN_TEXTS) recentWrittenTexts.removeFirst()
+        recordRecentWrite(result.text, original, nodeKey)
         return true
     }
 
@@ -436,7 +439,54 @@ open class AssistantAccessibilityService : AccessibilityService() {
 
     private fun isRecentlyWrittenText(text: String): Boolean {
         val current = normalizeComparableText(text)
-        return current.isNotEmpty() && recentWrittenTexts.any { normalizeComparableText(it) == current }
+        if (current.isEmpty()) return false
+        trimRecentWriteRecords()
+        return recentWriteRecords.any { record ->
+            current == record.normalizedText ||
+                SystemClock.uptimeMillis() - record.uptime <= WRITE_ECHO_SUPPRESS_MS &&
+                (current.startsWith(record.normalizedText) || record.normalizedText.startsWith(current))
+        }
+    }
+
+    private fun isResidualFromRecentWrite(text: String, nodeKey: String): Boolean {
+        val current = normalizeComparableText(text)
+        if (current.isEmpty()) return false
+        trimRecentWriteRecords()
+        return recentWriteRecords.any { record ->
+            val sameNode = record.nodeKey == nodeKey
+            val recentEnough = SystemClock.uptimeMillis() - record.uptime <= GENERATED_RESIDUAL_SUPPRESS_MS
+            val hasOriginal = record.normalizedOriginal.isNotEmpty() && current.contains(record.normalizedOriginal)
+            sameNode &&
+                recentEnough &&
+                !hasOriginal &&
+                current.length >= MIN_GENERATED_RESIDUAL_LENGTH &&
+                record.normalizedText.contains(current)
+        }
+    }
+
+    private fun recordRecentWrite(text: String, original: String, nodeKey: String) {
+        val normalizedText = normalizeComparableText(text)
+        if (normalizedText.isEmpty()) return
+        val normalizedOriginal = normalizeComparableText(original)
+        recentWriteRecords.removeAll { it.normalizedText == normalizedText && it.nodeKey == nodeKey }
+        recentWriteRecords.addLast(
+            RecentWriteRecord(
+                text = text,
+                normalizedText = normalizedText,
+                normalizedOriginal = normalizedOriginal,
+                nodeKey = nodeKey,
+                uptime = SystemClock.uptimeMillis(),
+            ),
+        )
+        trimRecentWriteRecords()
+    }
+
+    private fun trimRecentWriteRecords() {
+        val now = SystemClock.uptimeMillis()
+        while (recentWriteRecords.isNotEmpty() && now - recentWriteRecords.first.uptime > RECENT_WRITE_KEEP_MS) {
+            recentWriteRecords.removeFirst()
+        }
+        while (recentWriteRecords.size > MAX_RECENT_WRITTEN_TEXTS) recentWriteRecords.removeFirst()
     }
 
     private fun sameNormalizedText(first: String, second: String): Boolean =
@@ -444,10 +494,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
 
     private fun normalizeComparableText(value: String): String =
         value
-            .replace("\u200B", "")
-            .replace("\u200C", "")
-            .replace("\u200D", "")
-            .replace("\uFEFF", "")
+            .filterNot { Character.getType(it) == Character.FORMAT.toInt() || Character.isISOControl(it) && it != '\n' }
             .replace("\r\n", "\n")
             .replace("\r", "\n")
             .trim()
@@ -476,7 +523,6 @@ open class AssistantAccessibilityService : AccessibilityService() {
 
     private fun resetState(clearDeletionSession: Boolean = true) {
         resetTextState(clearDeletionSession)
-        recentWrittenTexts.clear()
         lastFloatingNodeKey = ""
         lastFloatingInput = ""
         lastFloatingOutput = ""
@@ -642,6 +688,9 @@ open class AssistantAccessibilityService : AccessibilityService() {
         private const val WECHAT_RETRY_TEXT_PROCESS_DELAY_MS = 160L
         private const val REALTIME_DELETION_PROCESS_DELAY_MS = 0L
         private const val WRITE_ECHO_SUPPRESS_MS = 120L
+        private const val RECENT_WRITE_KEEP_MS = 10_000L
+        private const val GENERATED_RESIDUAL_SUPPRESS_MS = 10_000L
+        private const val MIN_GENERATED_RESIDUAL_LENGTH = 2
         private const val MAX_RECENT_WRITTEN_TEXTS = 12
         fun requestFloatingReplacement() { activeInstance?.replaceFocusedTextForFloating() }
         val knownPlaceholders = setOf(
@@ -663,4 +712,12 @@ open class AssistantAccessibilityService : AccessibilityService() {
             "短信",
         )
     }
+
+    private data class RecentWriteRecord(
+        val text: String,
+        val normalizedText: String,
+        val normalizedOriginal: String,
+        val nodeKey: String,
+        val uptime: Long,
+    )
 }

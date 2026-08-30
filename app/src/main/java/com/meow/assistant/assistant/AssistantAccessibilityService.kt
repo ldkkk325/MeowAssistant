@@ -2,9 +2,11 @@ package com.meow.assistant.assistant
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.text.InputType
 import android.view.accessibility.AccessibilityEvent
@@ -31,7 +33,21 @@ open class AssistantAccessibilityService : AccessibilityService() {
     private var pendingDeletionEvent = false
     private var pendingInsertionEvent = false
     private var deletionSessionActive = false
+    private var cachedConfig: AssistantConfig? = null
+    private var lastWriteUptime = 0L
+    private lateinit var preferences: SharedPreferences
     private val recentWrittenTexts = ArrayDeque<String>()
+
+    private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        cachedConfig = AssistantConfig.load(this)
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        preferences = getSharedPreferences(AssistantConfig.PREFS_NAME, MODE_PRIVATE)
+        cachedConfig = AssistantConfig.load(this)
+        preferences.registerOnSharedPreferenceChangeListener(preferenceListener)
+    }
 
     override fun onServiceConnected() {
         activeInstance = this
@@ -68,16 +84,12 @@ open class AssistantAccessibilityService : AccessibilityService() {
             }
             return
         }
-        val config = AssistantConfig.load(this)
+        val config = currentConfig()
         if (!config.enabled || eventPackage !in config.selectedPackages) return
         if (config.protectInputMethods && eventPackage == inputMethodPackage) return
         if (config.processingMode == ProcessingMode.FLOATING) return
         if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED && !isSendAction(event)) return
-        val root = getBestRoot(eventPackage)
-        val node = findFocusedEditableNode(root)
-            ?: findEditableNode(event.source)
-            ?: findEditableNode(root)
-            ?: return
+        val node = findEventEditableNode(eventPackage, event.eventType, event.source) ?: return
         val beforeLength = event.beforeText?.length ?: -1
         val eventTextLength = event.text.firstOrNull()?.length ?: -1
         val textChanged = event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
@@ -97,6 +109,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
             delayMs = eventProcessDelay(eventPackage, config, deletionEvent, insertionEvent),
             deletionEvent = deletionEvent,
             insertionEvent = insertionEvent,
+            retryAllowed = true,
         )
     }
 
@@ -108,6 +121,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
         delayMs: Long,
         deletionEvent: Boolean,
         insertionEvent: Boolean,
+        retryAllowed: Boolean,
     ) {
         pendingDeletionEvent = pendingDeletionEvent || deletionEvent
         pendingInsertionEvent = pendingInsertionEvent || insertionEvent
@@ -127,8 +141,12 @@ open class AssistantAccessibilityService : AccessibilityService() {
             pendingDeletionEvent = false
             pendingInsertionEvent = false
             try {
-                val currentNode = findCurrentEditableNode(eventPackage, snapshot)
-                processTextEvent(eventPackage, eventType, currentNode, eventText, wasDeletion, wasInsertion)
+                val currentNode = findCurrentEditableNode(
+                    eventPackage = eventPackage,
+                    fallback = snapshot,
+                    preferFreshRoot = eventPackage == WECHAT_PACKAGE,
+                )
+                processTextEvent(eventPackage, eventType, currentNode, eventText, wasDeletion, wasInsertion, retryAllowed)
             } finally {
                 snapshot.recycle()
             }
@@ -144,8 +162,9 @@ open class AssistantAccessibilityService : AccessibilityService() {
         eventText: String?,
         deletionEvent: Boolean,
         insertionEvent: Boolean,
+        retryAllowed: Boolean,
     ) {
-        val config = AssistantConfig.load(this)
+        val config = currentConfig()
         if (!config.enabled || eventPackage !in config.selectedPackages) return
         if (config.protectInputMethods && eventPackage == inputMethodPackage) return
         if (config.processingMode == ProcessingMode.FLOATING) return
@@ -157,6 +176,24 @@ open class AssistantAccessibilityService : AccessibilityService() {
             resetState(clearDeletionSession = false)
             lastNodeKey = nodeKey
         }
+        if (isPlaceholderText(node, current)) {
+            if (shouldRetryWeChatRead(eventPackage, eventType, config, insertionEvent, retryAllowed)) {
+                scheduleTextProcessing(
+                    eventPackage = eventPackage,
+                    eventType = eventType,
+                    node = node,
+                    eventText = null,
+                    delayMs = WECHAT_RETRY_TEXT_PROCESS_DELAY_MS,
+                    deletionEvent = false,
+                    insertionEvent = insertionEvent,
+                    retryAllowed = false,
+                )
+                return
+            }
+            resetTextState()
+            return
+        }
+        if (isRecentSelfWriteEcho(current)) return
         val previousObservedText = lastObservedText
         val currentCursor = node.textSelectionStart
             .takeIf { it >= 0 }
@@ -189,11 +226,6 @@ open class AssistantAccessibilityService : AccessibilityService() {
         lastObservedText = current
         if (current == lastWritten) return
         if (current in recentWrittenTexts) return
-        val hint = node.hintText?.toString()?.trim().orEmpty()
-        if (current.isBlank() || current.trim() in knownPlaceholders || hint.isNotEmpty() && current.trim() == hint) {
-            resetTextState()
-            return
-        }
         if (config.processingMode == ProcessingMode.PUNCTUATION && eventType != AccessibilityEvent.TYPE_VIEW_CLICKED && current.lastOrNull()?.let { it !in charArrayOf('。', '！', '!', '？', '?', '.', ',', '，', '\n') } == true) return
 
         val previousEmoticon = lastEmoticon?.takeIf { current.contains(it) }
@@ -221,6 +253,9 @@ open class AssistantAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         cancelPendingProcessing(clearDeletion = true)
         if (activeInstance === this) activeInstance = null
+        if (::preferences.isInitialized) {
+            preferences.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+        }
         super.onDestroy()
     }
 
@@ -249,12 +284,26 @@ open class AssistantAccessibilityService : AccessibilityService() {
         insertionEvent: Boolean,
     ): Long = when {
         config.processingMode == ProcessingMode.REALTIME && deletionEvent && !insertionEvent -> REALTIME_DELETION_PROCESS_DELAY_MS
-        eventPackage == WECHAT_PACKAGE && config.processingMode == ProcessingMode.REALTIME -> WECHAT_TEXT_PROCESS_DELAY_MS
+        eventPackage == WECHAT_PACKAGE && config.processingMode == ProcessingMode.REALTIME -> WECHAT_FAST_TEXT_PROCESS_DELAY_MS
+        config.processingMode == ProcessingMode.REALTIME -> REALTIME_TEXT_PROCESS_DELAY_MS
         else -> TEXT_PROCESS_DELAY_MS
     }
 
+    private fun shouldRetryWeChatRead(
+        eventPackage: String,
+        eventType: Int,
+        config: AssistantConfig,
+        insertionEvent: Boolean,
+        retryAllowed: Boolean,
+    ): Boolean =
+        retryAllowed &&
+            eventPackage == WECHAT_PACKAGE &&
+            config.processingMode == ProcessingMode.REALTIME &&
+            eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
+            insertionEvent
+
     private fun replaceFocusedTextForFloating() {
-        val config = AssistantConfig.load(this)
+        val config = currentConfig()
         if (!config.enabled || config.processingMode != ProcessingMode.FLOATING) return
         val root = getBestRoot(null) ?: return
         val eventPackage = normalizePackageName(root.packageName?.toString().orEmpty())
@@ -266,7 +315,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
         val currentNodeKey = nodeKey(eventPackage, node)
         if (current == lastWritten || current in recentWrittenTexts || current == lastFloatingOutput) return
         if (currentNodeKey == lastFloatingNodeKey && current == lastFloatingInput) return
-        if (current.isBlank() || current.trim() in knownPlaceholders) return
+        if (isPlaceholderText(node, current)) return
         val result = TextProcessor.process(current, config)
         if (result.text == current || result.text.isBlank()) return
         if (writeResult(node, result, current)) {
@@ -290,6 +339,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
         })
         previousOriginal = original
         lastWritten = result.text
+        lastWriteUptime = SystemClock.uptimeMillis()
         lastObservedText = result.text
         lastResult = result
         lastEmoticon = result.emoticon
@@ -319,6 +369,7 @@ open class AssistantAccessibilityService : AccessibilityService() {
     private fun writePlainText(node: AccessibilityNodeInfo, text: String, selectionIndex: Int): Boolean {
         val arguments = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
         if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) return false
+        lastWriteUptime = SystemClock.uptimeMillis()
         node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
             val cursor = selectionIndex.coerceIn(0, text.length)
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, cursor)
@@ -350,6 +401,20 @@ open class AssistantAccessibilityService : AccessibilityService() {
         val numeric = inputClass == InputType.TYPE_CLASS_NUMBER || inputClass == InputType.TYPE_CLASS_PHONE || inputClass == InputType.TYPE_CLASS_DATETIME
         return config.protectPasswords && password || numeric
     }
+
+    private fun isPlaceholderText(node: AccessibilityNodeInfo, text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return true
+        if (runCatching { node.isShowingHintText }.getOrDefault(false)) return true
+        val hint = node.hintText?.toString()?.trim().orEmpty()
+        return trimmed in knownPlaceholders || hint.isNotEmpty() && trimmed == hint
+    }
+
+    private fun isRecentSelfWriteEcho(text: String): Boolean =
+        text == lastWritten && SystemClock.uptimeMillis() - lastWriteUptime <= WRITE_ECHO_SUPPRESS_MS
+
+    private fun currentConfig(): AssistantConfig =
+        cachedConfig ?: AssistantConfig.load(this).also { cachedConfig = it }
 
     private fun nodeKey(eventPackage: String, node: AccessibilityNodeInfo): String = "$eventPackage:${node.windowId}:${node.viewIdResourceName}:${node.className}"
     private fun defaultInputMethodPackage(): String? = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
@@ -419,10 +484,32 @@ open class AssistantAccessibilityService : AccessibilityService() {
         return null
     }
 
-    private fun findCurrentEditableNode(eventPackage: String, fallback: AccessibilityNodeInfo): AccessibilityNodeInfo {
+    private fun findEventEditableNode(
+        eventPackage: String,
+        eventType: Int,
+        source: AccessibilityNodeInfo?,
+    ): AccessibilityNodeInfo? {
+        val sourceEditable = findEditableNode(source)
+        if (
+            sourceEditable != null &&
+            (eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED || eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED)
+        ) {
+            return sourceEditable
+        }
+        val root = getBestRoot(eventPackage)
+        return findFocusedEditableNode(root) ?: sourceEditable ?: findEditableNode(root)
+    }
+
+    private fun findCurrentEditableNode(
+        eventPackage: String,
+        fallback: AccessibilityNodeInfo,
+        preferFreshRoot: Boolean,
+    ): AccessibilityNodeInfo {
+        val fallbackEditable = findEditableNode(fallback)
+        if (!preferFreshRoot && fallbackEditable != null) return fallbackEditable
         val root = getBestRoot(eventPackage)
         return findFocusedEditableNode(root)
-            ?: findEditableNode(fallback)
+            ?: fallbackEditable
             ?: findEditableNode(root)
             ?: fallback
     }
@@ -468,10 +555,30 @@ open class AssistantAccessibilityService : AccessibilityService() {
         @Volatile private var activeInstance: AssistantAccessibilityService? = null
         private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val TEXT_PROCESS_DELAY_MS = 100L
-        private const val WECHAT_TEXT_PROCESS_DELAY_MS = 180L
+        private const val REALTIME_TEXT_PROCESS_DELAY_MS = 32L
+        private const val WECHAT_FAST_TEXT_PROCESS_DELAY_MS = 48L
+        private const val WECHAT_RETRY_TEXT_PROCESS_DELAY_MS = 160L
         private const val REALTIME_DELETION_PROCESS_DELAY_MS = 0L
+        private const val WRITE_ECHO_SUPPRESS_MS = 120L
         private const val MAX_RECENT_WRITTEN_TEXTS = 12
         fun requestFloatingReplacement() { activeInstance?.replaceFocusedTextForFloating() }
-        val knownPlaceholders = setOf("发消息", "发消息或按住说话", "发送消息", "说点什么", "发个评论", "友善评论", "友善评论一下", "输入内容", "输入消息", "写下你的评论", "短信")
+        val knownPlaceholders = setOf(
+            "发消息",
+            "发消息或按住说话",
+            "发送消息",
+            "说点什么",
+            "发个评论",
+            "友善评论",
+            "友善评论一下",
+            "输入内容",
+            "输入消息",
+            "请输入内容",
+            "请输入文字",
+            "请输入消息",
+            "写下你的评论",
+            "添加评论",
+            "评论",
+            "短信",
+        )
     }
 }

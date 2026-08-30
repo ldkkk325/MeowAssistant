@@ -30,7 +30,7 @@ object TextProcessor {
         val original = text.orEmpty()
         if (original.isBlank() || !config.enabled) return unchanged(original)
         var mapped = MappedText(original, IntArray(original.length + 1) { it })
-        config.rules.forEach { mapped = replaceMapped(mapped, it) }
+        mapped = applyRules(mapped, config.rules)
         val body = if (config.enableAppend) appendPerSentence(mapped, config.appendText, config.appendProbability, random) else ProcessedBody(mapped, mapped.text.length)
         val result = StringBuilder(body.value.text)
         val boundaries = body.value.boundaries.toMutableList()
@@ -116,23 +116,41 @@ object TextProcessor {
 
     private fun unchanged(text: String) = ProcessResult(text, text.length, IntArray(text.length + 1) { it })
 
-    private fun replaceMapped(source: MappedText, rule: ReplacementRule): MappedText {
-        if (rule.from.isEmpty() || !source.text.contains(rule.from)) return source
+    private fun applyRules(source: MappedText, rules: List<ReplacementRule>): MappedText {
+        val matchers = rules
+            .mapIndexed { index, rule -> IndexedRule(index, rule) }
+            .filter { it.rule.from.isNotEmpty() }
+            .sortedWith(compareByDescending<IndexedRule> { it.rule.from.length }.thenBy { it.index })
+        if (matchers.isEmpty()) return source
         val output = StringBuilder()
         val boundaries = mutableListOf(source.boundaries.first())
         var sourceIndex = 0
         while (sourceIndex < source.text.length) {
-            val matchIndex = source.text.indexOf(rule.from, sourceIndex)
-            if (matchIndex < 0) { appendSourceRange(source, sourceIndex, source.text.length, output, boundaries); break }
-            appendSourceRange(source, sourceIndex, matchIndex, output, boundaries)
-            val matchEnd = matchIndex + rule.from.length
-            rule.to.forEachIndexed { index, character ->
-                output.append(character)
-                boundaries.add(if (index == rule.to.lastIndex) source.boundaries[matchEnd] else source.boundaries[matchIndex])
+            val matched = matchers.firstOrNull { source.text.startsWith(it.rule.from, sourceIndex) }
+            if (matched == null) {
+                output.append(source.text[sourceIndex])
+                boundaries.add(source.boundaries[sourceIndex + 1])
+                sourceIndex++
+            } else {
+                appendReplacement(source, sourceIndex, matched.rule, output, boundaries)
+                sourceIndex += matched.rule.from.length
             }
-            sourceIndex = matchEnd
         }
         return MappedText(output.toString(), boundaries.toIntArray())
+    }
+
+    private fun appendReplacement(
+        source: MappedText,
+        sourceIndex: Int,
+        rule: ReplacementRule,
+        output: StringBuilder,
+        boundaries: MutableList<Int>,
+    ) {
+        val matchEnd = sourceIndex + rule.from.length
+        rule.to.forEachIndexed { index, character ->
+            output.append(character)
+            boundaries.add(if (index == rule.to.lastIndex) source.boundaries[matchEnd] else source.boundaries[sourceIndex])
+        }
     }
 
     private fun appendPerSentence(source: MappedText, suffix: String, probability: Int, random: Random): ProcessedBody {
@@ -193,4 +211,5 @@ object TextProcessor {
 
     private data class MappedText(val text: String, val boundaries: IntArray)
     private data class ProcessedBody(val value: MappedText, val cursorIndex: Int)
+    private data class IndexedRule(val index: Int, val rule: ReplacementRule)
 }

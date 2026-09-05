@@ -20,3 +20,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "MeowAssistant"
 include(":app")
+include(":backdrop")

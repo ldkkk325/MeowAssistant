@@ -195,6 +195,8 @@ dependencies {
     implementation(libs.commons.compress)
     implementation(libs.xz)
     implementation(libs.protobuf.kotlin.lite)
+
+    implementation(project(":backdrop"))
 }
 
 kotlin {

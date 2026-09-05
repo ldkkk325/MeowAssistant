@@ -18,6 +18,8 @@ appiconloader = "1.5.0"
 protobuf = "4.36.0"
 commons-compress = "1.28.0"
 xz = "1.12"
+jetbrains-compose = "1.12.0"
+kyantShapes = "1.2.1"
 
 [plugins]
 agp-app = { id = "com.android.application", version.ref = "agp" }
@@ -25,6 +27,10 @@ agp-app = { id = "com.android.application", version.ref = "agp" }
 kotlin = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+android-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+jetbrains-compose = { id = "org.jetbrains.compose", version.ref = "jetbrains-compose" }
 
 protobuf = { id = "com.google.protobuf", version = "0.10.0" }
 
@@ -79,3 +85,8 @@ protobuf-kotlin-lite = { module = "com.google.protobuf:protobuf-kotlin-lite", ve
 protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
 xz = { module = "org.tukaani:xz", version.ref = "xz" }
+
+compose-foundation = { group = "org.jetbrains.compose.foundation", name = "foundation", version.ref = "jetbrains-compose" }
+compose-ui = { group = "org.jetbrains.compose.ui", name = "ui", version.ref = "jetbrains-compose" }
+compose-ui-graphics = { group = "org.jetbrains.compose.ui", name = "ui-graphics", version.ref = "jetbrains-compose" }
+kyant-shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "kyantShapes" }

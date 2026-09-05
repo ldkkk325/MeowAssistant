@@ -28,6 +28,8 @@ import com.meow.assistant.ui.component.FloatingBottomBarItem
 import com.meow.assistant.ui.theme.LocalEnableFloatingBottomBar
 import com.meow.assistant.ui.theme.LocalEnableFloatingBottomBarBlur
 import com.meow.assistant.ui.util.BlurredBar
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Icon
@@ -35,8 +37,6 @@ import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.blur.Backdrop
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable

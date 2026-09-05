@@ -20,8 +20,8 @@ import com.meow.assistant.ui.LocalUiMode
 import com.meow.assistant.ui.UiMode
 import com.meow.assistant.ui.component.PagerNavigationSpringSpec
 import com.meow.assistant.ui.util.shouldShowSplitPane
-import top.yukonga.miuix.kmp.blur.Backdrop
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import kotlin.math.abs
 
 class MainPagerState(

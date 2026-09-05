@@ -80,9 +80,9 @@ import com.meow.assistant.ui.viewmodel.MainActivityViewModel
 import com.meow.assistant.ui.viewmodel.MainPagerConfig
 import com.meow.assistant.update.ReleaseInfo
 import com.meow.assistant.update.UpdateManager
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 class MainActivity : ComponentActivity() {

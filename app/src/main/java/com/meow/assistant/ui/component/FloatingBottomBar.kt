@@ -1,4 +1,5 @@
-// Adapted from compose-miuix-ui example (IosLiquidGlassNavigationBar) — Apache 2.0.
+// Adapted from Kyant0/AndroidLiquidGlass catalog (LiquidBottomTabs) — Apache 2.0.
+// Re-rendered using io.github.kyant0/backdrop instead of the previous miuix-blur based implementation.
 
 package com.meow.assistant.ui.component
 
@@ -54,31 +55,25 @@ import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import com.meow.assistant.ui.component.liquid.InnerShadow
-import com.meow.assistant.ui.component.liquid.innerShadow
-import com.meow.assistant.ui.component.liquid.lens
-import com.meow.assistant.ui.component.liquid.rememberCombinedBackdrop
-import com.meow.assistant.ui.component.liquid.vibrancy
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.highlight.HighlightStyle
+import com.kyant.backdrop.sensor.rememberDeviceTilt
+import com.kyant.backdrop.shadow.InnerShadow
 import com.meow.assistant.ui.component.miuix.animation.DampedDragAnimation
 import com.meow.assistant.ui.component.miuix.animation.InteractiveHighlight
 import com.meow.assistant.ui.theme.isInDarkTheme
-import top.yukonga.miuix.kmp.blur.Backdrop
-import top.yukonga.miuix.kmp.blur.blur
-import top.yukonga.miuix.kmp.blur.drawBackdrop
-import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
-import top.yukonga.miuix.kmp.blur.highlight.LightPosition
-import top.yukonga.miuix.kmp.blur.highlight.LightSource
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.sensor.rememberDeviceTilt
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.sign
-import kotlin.math.sin
 import kotlin.math.sqrt
 
 val LocalFloatingBottomBarTabScale = staticCompositionLocalOf { { 1f } }
@@ -86,62 +81,43 @@ val LocalFloatingBottomBarTabScale = staticCompositionLocalOf { { 1f } }
 private val iosIndicatorSpecular: Highlight = Highlight(
     width = 1.dp,
     alpha = 1f,
-    style = BloomStroke(
-        color = Color.White.copy(alpha = 0.12f),
-        innerBlurRadius = 2.0.dp,
-        primaryLight = LightSource(
-            position = LightPosition(0.5f, -0.3f, -0.05f),
-            color = Color.White,
-            intensity = 1f,
-        ),
-        secondaryLight = LightSource(
-            position = LightPosition(0.5f, 0.8f, -0.5f),
-            color = Color.White,
-            intensity = 0.4f,
-        ),
-        dualPeak = true,
-    ),
+    style = HighlightStyle.Default,
 )
 
-// Mirrors miuix-blur HighlightStyle's LIGHT_REF — keep in sync.
-private const val LIGHT_REF_X = 0.5f
-private const val LIGHT_REF_Y = 0.7f
+// Mirrors the device-tilt highlight logic previously provided by miuix-blur.
+private const val LIGHT_REF_ANGLE = 45f
 private const val GRAVITY_DIR_THRESHOLD_SQ = 0.01f // |g_xy| > 0.1, ≈ 6° tilt
 
-/** Tracks gravity for a `dualPeak` highlight's primary light, with an extra UV-clockwise offset on top. */
+/**
+ * Rotates the specular [Highlight]'s light angle according to the device gravity
+ * direction, with an extra clockwise offset on top.
+ */
 @Composable
 private fun rememberGravityRotatedHighlight(
     base: Highlight,
     extraDegrees: Float = 0f,
 ): Highlight {
-    val baseStyle = base.style as BloomStroke
     val tilt by rememberDeviceTilt()
-    val rotatedPrimary = remember(tilt, baseStyle.primaryLight, extraDegrees) {
-        val basePrimary = baseStyle.primaryLight
+    val angle = remember(tilt, extraDegrees) {
         val gx = tilt.gravityX
         val gy = tilt.gravityY
         val gMagSq = gx * gx + gy * gy
-        val (lx0, ly0) = if (gMagSq > GRAVITY_DIR_THRESHOLD_SQ) {
+        val (lx, ly) = if (gMagSq > GRAVITY_DIR_THRESHOLD_SQ) {
             val invMag = 1f / sqrt(gMagSq)
             (gx * invMag) to (gy * invMag)
         } else {
             0f to -1f
         }
-        val rad = extraDegrees * PI / 180.0
-        val c = cos(rad).toFloat()
-        val s = sin(rad).toFloat()
-        val lx = c * lx0 - s * ly0
-        val ly = s * lx0 + c * ly0
-        basePrimary.copy(
-            position = LightPosition(
-                x = LIGHT_REF_X + lx,
-                y = LIGHT_REF_Y + ly,
-                z = basePrimary.position.z,
-            ),
-        )
+        // Map the gravity direction (lx, ly) to a highlight angle.
+        val pi = kotlin.math.PI.toFloat()
+        val baseRad = LIGHT_REF_ANGLE * pi / 180f
+        val angleRad = kotlin.math.atan2(ly.toDouble(), lx.toDouble()).toFloat()
+        val rotated = baseRad + (angleRad - pi / 2f) + extraDegrees * pi / 180f
+        ((rotated % (2f * pi)) * 180f / pi)
     }
-    return remember(base, rotatedPrimary) {
-        base.copy(style = baseStyle.copy(primaryLight = rotatedPrimary))
+    val style = base.style as? HighlightStyle.Default ?: return base
+    return remember(base, angle) {
+        base.copy(style = style.copy(angle = angle))
     }
 }
 
@@ -324,7 +300,7 @@ fun FloatingBottomBar(
                             shape = { pillShape },
                             effects = {
                                 vibrancy()
-                                blur(4.dp.toPx(), 4.dp.toPx())
+                                blur(4.dp.toPx())
                                 lens(
                                     refractionHeight = 24.dp.toPx(),
                                     refractionAmount = 24.dp.toPx(),
@@ -371,7 +347,7 @@ fun FloatingBottomBar(
                             shape = { pillShape },
                             effects = {
                                 vibrancy()
-                                blur(4.dp.toPx(), 4.dp.toPx())
+                                blur(4.dp.toPx())
                                 lens(
                                     refractionHeight = 24.dp.toPx(),
                                     refractionAmount = 24.dp.toPx(),
@@ -409,10 +385,17 @@ fun FloatingBottomBar(
                                     refractionHeight = 10.dp.toPx() * progress,
                                     refractionAmount = 14.dp.toPx() * progress,
                                     depthEffect = true,
-                                    chromaticAberration = 0.5f,
+                                    chromaticAberration = true,
                                 )
                             },
                             highlight = { pillHighlight.copy(alpha = dampedDragAnimation.pressProgress) },
+                            innerShadow = {
+                                InnerShadow(
+                                    radius = 8.dp * dampedDragAnimation.pressProgress,
+                                    color = Color.Black.copy(alpha = 0.15f),
+                                    alpha = dampedDragAnimation.pressProgress,
+                                )
+                            },
                             layerBlock = {
                                 scaleX = dampedDragAnimation.scaleX
                                 scaleY = dampedDragAnimation.scaleY
@@ -429,13 +412,6 @@ fun FloatingBottomBar(
                                 drawRect(Color.Black.copy(alpha = 0.03f * progress))
                             },
                         )
-                        .innerShadow(shape = pillShape) {
-                            InnerShadow(
-                                radius = 8.dp * dampedDragAnimation.pressProgress,
-                                color = Color.Black.copy(alpha = 0.15f),
-                                alpha = dampedDragAnimation.pressProgress,
-                            )
-                        }
                         .height(56.dp)
                         .width(tabWidthDp)
                 )
@@ -457,4 +433,3 @@ fun FloatingBottomBar(
         }
     }
 }
-

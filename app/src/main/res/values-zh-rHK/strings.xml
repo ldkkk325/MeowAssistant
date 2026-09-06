@@ -231,6 +231,8 @@
     <string name="settings_floating_bottom_bar_summary">使用 Apple 風格懸浮底部欄</string>
     <string name="settings_enable_glass">液態玻璃</string>
     <string name="settings_enable_glass_summary">為懸浮底部欄啟用液態玻璃效果</string>
+    <string name="settings_enable_glass_switch">液態玻璃控件</string>
+    <string name="settings_enable_glass_switch_summary">為開關及滑桿啟用液態玻璃效果</string>
     <string name="show_only_primary_user_apps">僅顯示主要使用者 App</string>
     <string name="settings_auto_jailbreak_summary">開機時若偵測到寬容模式 SELinux，將自動使用 Magica 提升權限（需授予本程式背景啟動權限）</string>
     <string name="settings_auto_jailbreak">自動越獄</string>

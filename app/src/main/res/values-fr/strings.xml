@@ -227,6 +227,8 @@
     <string name="settings_floating_bottom_bar_summary">Utilisez la barre inférieure flottante de type Apple</string>
     <string name="settings_enable_glass">Liquid Glass</string>
     <string name="settings_enable_glass_summary">Activez l\'effet Liquid Glass pour la barre inférieure flottante</string>
+    <string name="settings_enable_glass_switch">Commandes Liquid Glass</string>
+    <string name="settings_enable_glass_switch_summary">Activez l\'effet Liquid Glass pour les interrupteurs et les curseurs</string>
     <string name="show_only_primary_user_apps">Afficher seulement les applis de l\'utilisateur principal</string>
     <string name="settings_auto_jailbreak">Jailbreak automatique</string>
     <string name="settings_auto_jailbreak_summary">Utilisez automatiquement Magica pour l\'élévation de privilèges lorsque SELinux permissif est détecté au démarrage de l\'appareil. L\'autorisation de démarrage automatique devra être accordé à cette application.</string>

@@ -45,6 +45,8 @@
     <string name="settings_navigation_badge_summary">Show counts on the navigation bar.</string>
     <string name="settings_enable_glass">Liquid glass</string>
     <string name="settings_enable_glass_summary">Enable the liquid glass effect for the floating bottom bar.</string>
+    <string name="settings_enable_glass_switch">Liquid glass controls</string>
+    <string name="settings_enable_glass_switch_summary">Enable the liquid glass effect for switches and sliders.</string>
     <string name="settings_scale">Interface scale</string>
     <string name="color_blue">Blue</string>
     <string name="color_red">Red</string>

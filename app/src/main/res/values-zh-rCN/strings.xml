@@ -45,6 +45,8 @@
     <string name="settings_navigation_badge_summary">在导航栏显示数量角标。</string>
     <string name="settings_enable_glass">流体玻璃</string>
     <string name="settings_enable_glass_summary">为悬浮底栏启用流体玻璃效果。</string>
+    <string name="settings_enable_glass_switch">流体玻璃控件</string>
+    <string name="settings_enable_glass_switch_summary">为开关和滑块启用流体玻璃效果。</string>
     <string name="settings_scale">界面缩放</string>
     <string name="color_blue">蓝色</string>
     <string name="color_red">红色</string>

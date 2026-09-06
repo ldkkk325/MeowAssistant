@@ -66,10 +66,13 @@ import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
 import com.meow.assistant.R
+import com.meow.assistant.ui.component.GlassSlider
+import com.meow.assistant.ui.component.GlassSwitchPreference
 import com.meow.assistant.ui.component.bottombar.useNavigationRail
 import com.meow.assistant.ui.UiMode
 import com.meow.assistant.ui.component.miuix.ScaleDialog
 import com.meow.assistant.ui.theme.LocalEnableBlur
+import com.meow.assistant.ui.theme.LocalEnableGlassSwitch
 import com.meow.assistant.ui.theme.keyColorOptions
 import com.meow.assistant.ui.util.BlurredBar
 import com.meow.assistant.ui.util.rememberBlurBackdrop
@@ -78,7 +81,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
@@ -88,7 +90,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -198,7 +199,7 @@ fun ColorPaletteScreenMiuix(
                                 )
                             },
                         )
-                        SwitchPreference(
+                        GlassSwitchPreference(
                             title = stringResource(id = R.string.settings_monet),
                             startAction = {
                                 Icon(
@@ -305,7 +306,7 @@ fun ColorPaletteScreenMiuix(
                             .fillMaxWidth(),
                     ) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            SwitchPreference(
+                            GlassSwitchPreference(
                                 title = stringResource(id = R.string.settings_enable_blur),
                                 summary = stringResource(id = R.string.settings_enable_blur_summary),
                                 startAction = {
@@ -322,7 +323,7 @@ fun ColorPaletteScreenMiuix(
                                 }
                             )
                         }
-                        SwitchPreference(
+                        GlassSwitchPreference(
                             title = stringResource(id = R.string.settings_floating_bottom_bar),
                             summary = stringResource(id = R.string.settings_floating_bottom_bar_summary),
                             startAction = {
@@ -339,7 +340,7 @@ fun ColorPaletteScreenMiuix(
                             }
                         )
                         AnimatedVisibility(visible = uiState.enableFloatingBottomBar && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            SwitchPreference(
+                            GlassSwitchPreference(
                                 title = stringResource(id = R.string.settings_enable_glass),
                                 summary = stringResource(id = R.string.settings_enable_glass_summary),
                                 startAction = {
@@ -356,7 +357,25 @@ fun ColorPaletteScreenMiuix(
                                 }
                             )
                         }
-                        SwitchPreference(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            GlassSwitchPreference(
+                                title = stringResource(id = R.string.settings_enable_glass_switch),
+                                summary = stringResource(id = R.string.settings_enable_glass_switch_summary),
+                                startAction = {
+                                    Icon(
+                                        Icons.Rounded.Style,
+                                        modifier = Modifier.padding(end = 6.dp),
+                                        contentDescription = stringResource(id = R.string.settings_enable_glass_switch),
+                                        tint = colorScheme.onBackground
+                                    )
+                                },
+                                checked = uiState.enableGlassSwitch,
+                                onCheckedChange = {
+                                    actions.onSetEnableGlassSwitch(it)
+                                }
+                            )
+                        }
+                        GlassSwitchPreference(
                             title = stringResource(id = R.string.settings_navigation_badge),
                             summary = stringResource(id = R.string.settings_navigation_badge_summary),
                             startAction = {
@@ -380,7 +399,7 @@ fun ColorPaletteScreenMiuix(
                             .fillMaxWidth(),
                     ) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            SwitchPreference(
+                            GlassSwitchPreference(
                                 title = stringResource(id = R.string.settings_enable_predictive_back),
                                 summary = stringResource(id = R.string.settings_enable_predictive_back_summary),
                                 startAction = {
@@ -419,7 +438,7 @@ fun ColorPaletteScreenMiuix(
                             onClick = { showScaleDialog.value = !showScaleDialog.value },
                             holdDownState = showScaleDialog.value,
                             bottomAction = {
-                                Slider(
+                                GlassSlider(
                                     value = sliderValue,
                                     onValueChange = {
                                         sliderValue = it
@@ -432,6 +451,7 @@ fun ColorPaletteScreenMiuix(
                                     keyPoints = listOf(0.8f, 0.9f, 1f, 1.1f),
                                     magnetThreshold = 0.01f,
                                     hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                                    glass = LocalEnableGlassSwitch.current,
                                 )
                             },
                         )

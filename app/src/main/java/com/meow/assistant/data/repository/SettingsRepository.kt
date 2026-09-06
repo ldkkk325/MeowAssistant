@@ -14,4 +14,5 @@ interface SettingsRepository {
     var enableFloatingBottomBarBlur: Boolean
     var enableNavigationBadge: Boolean
     var pageScale: Float
+    var enableGlassSwitch: Boolean
 }

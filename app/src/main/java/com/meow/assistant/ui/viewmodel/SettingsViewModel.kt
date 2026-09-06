@@ -30,6 +30,7 @@ class SettingsViewModel(private val repo: SettingsRepository = SettingsRepositor
             enableFloatingBottomBarBlur = repo.enableFloatingBottomBarBlur,
             enableNavigationBadge = repo.enableNavigationBadge,
             pageScale = repo.pageScale,
+            enableGlassSwitch = repo.enableGlassSwitch,
         )
     }
     fun setCheckUpdate(value: Boolean) { repo.checkUpdate = value; _uiState.update { it.copy(checkUpdate = value) } }
@@ -40,6 +41,7 @@ class SettingsViewModel(private val repo: SettingsRepository = SettingsRepositor
     fun setEnableFloatingBottomBarBlur(value: Boolean) { repo.enableFloatingBottomBarBlur = value; _uiState.update { it.copy(enableFloatingBottomBarBlur = value) } }
     fun setEnableNavigationBadge(value: Boolean) { repo.enableNavigationBadge = value; _uiState.update { it.copy(enableNavigationBadge = value) } }
     fun setPageScale(value: Float) { repo.pageScale = value; _uiState.update { it.copy(pageScale = value) } }
+    fun setEnableGlassSwitch(value: Boolean) { repo.enableGlassSwitch = value; _uiState.update { it.copy(enableGlassSwitch = value) } }
     fun setThemeMode(value: Int) { repo.themeMode = value; _uiState.update { it.copy(themeMode = value) } }
     fun setColorMode(value: ColorMode) = setThemeMode(value.value)
     fun setMiuixMonet(value: Boolean) { repo.miuixMonet = value; _uiState.update { it.copy(miuixMonet = value) } }

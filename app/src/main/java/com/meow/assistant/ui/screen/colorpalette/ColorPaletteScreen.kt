@@ -52,6 +52,7 @@ fun ColorPaletteScreen() {
         onSetEnableFloatingBottomBar = viewModel::setEnableFloatingBottomBar,
         onSetEnableFloatingBottomBarBlur = viewModel::setEnableFloatingBottomBarBlur,
         onSetEnableNavigationBadge = viewModel::setEnableNavigationBadge,
+        onSetEnableGlassSwitch = viewModel::setEnableGlassSwitch,
         onSetEnablePredictiveBack = {
             viewModel.setEnablePredictiveBack(it)
             activity?.recreate()

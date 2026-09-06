@@ -18,6 +18,7 @@ data class SettingsUiState(
     val enableFloatingBottomBarBlur: Boolean = false,
     val enableNavigationBadge: Boolean = true,
     val pageScale: Float = 1f,
+    val enableGlassSwitch: Boolean = true,
 )
 
 @Immutable

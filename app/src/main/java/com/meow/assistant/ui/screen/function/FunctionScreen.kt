@@ -57,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -75,12 +76,16 @@ import com.meow.assistant.assistant.AssistantViewModel
 import com.meow.assistant.assistant.ProcessingMode
 import com.meow.assistant.ui.LocalUiMode
 import com.meow.assistant.ui.UiMode
+import com.meow.assistant.ui.component.GlassSlider
+import com.meow.assistant.ui.component.GlassSwitchPreference
 import com.meow.assistant.ui.component.material.ExpressiveScaffold
 import com.meow.assistant.ui.component.material.SegmentedColumn
 import com.meow.assistant.ui.component.material.SegmentedDropdownItem
 import com.meow.assistant.ui.component.material.SegmentedListItem
 import com.meow.assistant.ui.component.material.SegmentedSwitchItem
 import com.meow.assistant.ui.component.material.expressiveTopAppBarColors
+import com.meow.assistant.ui.theme.LocalEnableBlur
+import com.meow.assistant.ui.theme.LocalEnableGlassSwitch
 import com.meow.assistant.ui.util.BlurredBar
 import com.meow.assistant.ui.util.rememberBlurBackdrop
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -88,7 +93,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -96,7 +100,6 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.kyant.backdrop.backdrops.layerBackdrop
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 
 @Composable
@@ -322,13 +325,13 @@ private fun FunctionPagerMiuix(
 ) {
     val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
-    val backdrop = rememberBlurBackdrop(enableBlur = true)
+    val backdrop = rememberBlurBackdrop(LocalEnableBlur.current)
     val blurActive = backdrop != null
-    val barColor = colorScheme.surface.copy(alpha = if (blurActive) 0.72f else 0.82f)
+    val barColor = if (blurActive) Color.Transparent else colorScheme.surface
     var editingField by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<EditorField?>(null) }
     Scaffold(
         topBar = {
-            BlurredBar(backdrop = backdrop, tintAlpha = 0.62f) {
+            BlurredBar(backdrop = backdrop) {
                 TopAppBar(
                     title = stringResource(R.string.function),
                     color = barColor,
@@ -343,8 +346,12 @@ private fun FunctionPagerMiuix(
             if (backdrop != null) modifier.layerBackdrop(backdrop) else modifier
         }) {
             Column(
-                modifier = Modifier.padding(innerPadding).nestedScroll(scrollBehavior.nestedScrollConnection).verticalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp).padding(bottom = bottomInnerPadding)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = innerPadding.calculateTopPadding(), start = 12.dp, end = 12.dp)
+                    .padding(bottom = bottomInnerPadding)
             ) {
             Card(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 OverlayDropdownPreference(
@@ -359,7 +366,7 @@ private fun FunctionPagerMiuix(
                     onSelectedIndexChange = { selectProcessingMode(context, viewModel, it) },
                     startAction = { Icon(Icons.Rounded.TextFields, null, tint = colorScheme.onBackground) },
                 )
-                SwitchPreference(
+                GlassSwitchPreference(
                     title = stringResource(R.string.assistant_append),
                     summary = stringResource(R.string.assistant_append_summary),
                     checked = config.enableAppend,
@@ -373,7 +380,7 @@ private fun FunctionPagerMiuix(
                         onClick = { editingField = EditorField.Append },
                     )
                 }
-                SwitchPreference(
+                GlassSwitchPreference(
                     title = stringResource(R.string.assistant_emoticon),
                     summary = stringResource(R.string.assistant_emoticon_summary),
                     checked = config.enableEmoticon,
@@ -389,10 +396,10 @@ private fun FunctionPagerMiuix(
                 SmoothAnimatedVisibility(visible = config.enableAppend) {
                     ProbabilityMiuix(R.string.assistant_append_probability, R.string.assistant_append_probability_summary, config.appendProbability, true, viewModel::setAppendProbability)
                 }
-                SwitchPreference(title = stringResource(R.string.assistant_protect_input_methods), summary = stringResource(R.string.assistant_protect_input_methods_summary), checked = config.protectInputMethods, onCheckedChange = viewModel::setProtectInputMethods)
-                SwitchPreference(title = stringResource(R.string.assistant_protect_passwords), summary = stringResource(R.string.assistant_protect_passwords_summary), checked = config.protectPasswords, onCheckedChange = viewModel::setProtectPasswords)
+                GlassSwitchPreference(title = stringResource(R.string.assistant_protect_input_methods), summary = stringResource(R.string.assistant_protect_input_methods_summary), checked = config.protectInputMethods, onCheckedChange = viewModel::setProtectInputMethods)
+                GlassSwitchPreference(title = stringResource(R.string.assistant_protect_passwords), summary = stringResource(R.string.assistant_protect_passwords_summary), checked = config.protectPasswords, onCheckedChange = viewModel::setProtectPasswords)
                 SmoothAnimatedVisibility(visible = config.enableEmoticon) {
-                    SwitchPreference(
+                    GlassSwitchPreference(
                         title = stringResource(R.string.assistant_smart_emoticon),
                         summary = stringResource(R.string.assistant_smart_emoticon_summary),
                         checked = config.enableSmartEmoticon,
@@ -400,7 +407,7 @@ private fun FunctionPagerMiuix(
                     )
                 }
                 SmoothAnimatedVisibility(visible = config.enableEmoticon) {
-                    SwitchPreference(
+                    GlassSwitchPreference(
                         title = stringResource(R.string.assistant_random_text),
                         summary = stringResource(R.string.assistant_random_text_summary),
                         checked = config.enableRandomText,
@@ -492,12 +499,13 @@ private fun EmoticonProbabilityMiuix(config: AssistantConfig, viewModel: Assista
             }
             Text("${probability.toInt()}%", color = colorScheme.primary)
         }
-        MiuixSlider(
+        GlassSlider(
             value = probability,
             onValueChange = { probability = it },
             onValueChangeFinished = { viewModel.setEmoticonProbability(probability.toInt()) },
             valueRange = 0f..100f,
             enabled = config.enableEmoticon,
+            glass = LocalEnableGlassSwitch.current,
         )
     }
 }
@@ -528,7 +536,7 @@ private fun ProbabilityMiuix(titleRes: Int, summaryRes: Int, value: Int, enabled
             }
             Text("${sliderValue.toInt()}%", color = colorScheme.primary)
         }
-        MiuixSlider(value = sliderValue, onValueChange = { sliderValue = it }, onValueChangeFinished = { onChange(sliderValue.toInt()) }, valueRange = 0f..100f, enabled = enabled)
+        GlassSlider(value = sliderValue, onValueChange = { sliderValue = it }, onValueChangeFinished = { onChange(sliderValue.toInt()) }, valueRange = 0f..100f, enabled = enabled, glass = LocalEnableGlassSwitch.current)
     }
 }
 
@@ -665,11 +673,12 @@ private fun FloatingSettingsMiuix(config: AssistantConfig, viewModel: AssistantV
                 }
                 Text(text = "${size.toInt()}dp", color = colorScheme.primary)
             }
-            MiuixSlider(
+            GlassSlider(
                 value = size,
                 onValueChange = { size = it },
                 onValueChangeFinished = { viewModel.setFloatBallSize(size.toInt()) },
                 valueRange = AssistantConfig.MIN_FLOAT_BALL_SIZE.toFloat()..AssistantConfig.MAX_FLOAT_BALL_SIZE.toFloat(),
+                glass = LocalEnableGlassSwitch.current,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -684,11 +693,12 @@ private fun FloatingSettingsMiuix(config: AssistantConfig, viewModel: AssistantV
                 }
                 Text(text = "${(alpha * 100).toInt()}%", color = colorScheme.primary)
             }
-            MiuixSlider(
+            GlassSlider(
                 value = alpha,
                 onValueChange = { alpha = it },
                 onValueChangeFinished = { viewModel.setFloatBallAlpha(alpha) },
                 valueRange = AssistantConfig.MIN_FLOAT_BALL_ALPHA..AssistantConfig.MAX_FLOAT_BALL_ALPHA,
+                glass = LocalEnableGlassSwitch.current,
             )
         }
     }

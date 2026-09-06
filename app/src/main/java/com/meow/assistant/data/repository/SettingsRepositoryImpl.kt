@@ -64,4 +64,8 @@ class SettingsRepositoryImpl : SettingsRepository {
     override var pageScale: Float
         get() = prefs.getFloat("page_scale", 1.0f)
         set(value) = prefs.edit { putFloat("page_scale", value) }
+
+    override var enableGlassSwitch: Boolean
+        get() = prefs.getBoolean("enable_glass_switch", true)
+        set(value) = prefs.edit { putBoolean("enable_glass_switch", value) }
 }

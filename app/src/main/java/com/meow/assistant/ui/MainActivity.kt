@@ -74,6 +74,7 @@ import com.meow.assistant.ui.theme.LocalEnableBlur
 import com.meow.assistant.ui.theme.LocalEnableFloatingBottomBar
 import com.meow.assistant.ui.theme.LocalEnableFloatingBottomBarBlur
 import com.meow.assistant.ui.theme.LocalEnableNavigationBadge
+import com.meow.assistant.ui.theme.LocalEnableGlassSwitch
 import com.meow.assistant.ui.util.rememberBlurBackdrop
 import com.meow.assistant.ui.util.rememberContentReady
 import com.meow.assistant.ui.viewmodel.MainActivityViewModel
@@ -138,6 +139,7 @@ class MainActivity : ComponentActivity() {
                 LocalEnableFloatingBottomBar provides uiState.enableFloatingBottomBar,
                 LocalEnableFloatingBottomBarBlur provides uiState.enableFloatingBottomBarBlur,
                 LocalEnableNavigationBadge provides uiState.enableNavigationBadge,
+                LocalEnableGlassSwitch provides uiState.enableGlassSwitch,
                 LocalUiMode provides uiMode,
             ) {
                 MeowAssistantTheme(appSettings = appSettings, uiMode = uiMode) {
